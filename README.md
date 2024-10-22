@@ -51,23 +51,20 @@ $ yarn run start:prod
 # unit tests
 $ yarn run test
 
-# e2e tests
-$ yarn run test:e2e
-
 # test coverage
 $ yarn run test:cov
 ```
 
 # Introduction
 
-This API provides endpoints for user and role management, including authentication, registration, role assignment, and user deletion. It uses NestJS, Prisma, and SQL for backend implementation. They are documented below.
+This document provides a comprehensive overview of the Money Transfer API built using NestJS, TypeScript, and PostgreSQL. The API allows users to register, manage their balance, and transfer money to other users using usernames. They are documented below.
 
 
 ## Registration
 
 Description: Registers a new user
 
-Endpoint: /auth/register
+Endpoint: /users
 
 Method: POST
 
@@ -76,9 +73,7 @@ Request Body:
 ```bash
 JSON
 {
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john.doe@example.com",
+  "username": "john",
   "password": "password123"
 }
 ```
@@ -89,15 +84,15 @@ Response:
 JSON
 {
   "id": 1,
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john.doe@example.com"
+  "username": "john",
+  "balance": 0,
+  "createdAt": "2024-10-22T08:39:48.194Z"
 }
 ```
 
 ## Login
 
-Description: Authenticates a user using their email and password. Returns a JWT token if successful.
+Description: Authenticates a user using their username and password. Returns a JWT token if successful.
 
 Endpoint: /auth/login
 
@@ -108,7 +103,7 @@ Request Body:
 ```bash
 JSON
 {
-  "email": "john.doe@example.com",
+  "username": "john",
   "password": "password123"
 }
 ```
@@ -123,11 +118,9 @@ JSON
 ```
 
 
+## Fetch Users Transfers
 
-
-## Fetch Users
-
-Description: Fetches a list of all users, including their assigned roles
+Description: Fetches all transfers a user has made. It expects query params username, page and limit. This endpoint is paginated
 
 Endpoint: /users
 
@@ -139,36 +132,72 @@ Response:
 JSON
 [
   {
-    "id": 1,
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john.doe@example.com",
-    "roles": [
-      {
-        "id": 1,
-        "name": "Admin"
-      }
-    ]
+      "id": 1,
+      "senderId": 3,
+      "receiverId": 10,
+      "amount": 100,
+      "createdAt": "2024-10-21T20:56:16.954Z"
   },
-  // ... other users
+  {
+      "id": 2,
+      "senderId": 3,
+      "receiverId": 11,
+      "amount": 100,
+      "createdAt": "2024-10-22T07:50:22.427Z"
+  },
+  {
+      "id": 3,
+      "senderId": 3,
+      "receiverId": 11,
+      "amount": 100,
+      "createdAt": "2024-10-22T08:41:09.288Z"
+  }
 ]
 ```
 
 
-## Delete User
+## Find User BY ID
 
-Description: Deletes a user with a specified user ID. Requires the Admin role.
+Description: Finds a user by ID. Expects the user's ID
 
-Endpoint: /users/:id
+Endpoint: /users/id/:id
 
-Method: DELETE
+Method: GET
+
+```bash
+JSON
+{
+  "id": 1,
+  "username": "wilber",
+  "balance": 100,
+  "createdAt": "2024-10-22T07:48:59.581Z"
+}
+```
+
+## Find User BY Username
+
+Description: Finds a user by username. Expects the user's username
+
+Endpoint: /users/username/:username
+
+Method: GET
+
+```bash
+JSON
+{
+  "id": 1,
+  "username": "wilber",
+  "balance": 100,
+  "createdAt": "2024-10-22T07:48:59.581Z"
+}
+```
 
 
-## Create Role
+## Transfer Money
 
-Description: Creates a new role
+Description: Transfers money from one user to another using their usernames
 
-Endpoint: /roles
+Endpoint: /transfers
 
 Method: POST
 
@@ -177,8 +206,8 @@ Request Body:
 ```bash
 JSON
 {
-  "name": "Admin",
-  "permissions": ["READ", "WRITE"]
+   "receiverUsername": "wilber",
+    "amount": 100
 }
 ```
 
@@ -187,38 +216,22 @@ Response:
 ```bash
 JSON
 {
-  "id": 142,
-  "name": "userw",
-  "permissions": [
-      "READ"
-  ]
-}
-```
-
-## Assign Role
-
-Description: Assigns a role to a user
-
-Endpoint: /users/:id/assign-role
-
-Method: POST
-
-Request Body:
-
-```bash
-JSON
-{
-  "roleName": "admin"
+  "id": 3,
+  "senderId": 3,
+  "receiverId": 11,
+  "amount": 100,
+  "createdAt": "2024-10-22T08:41:09.288Z"
 }
 ```
 
 
 ## Authentication and Authorization
-All endpoints except /auth/login and /auth/register require JWT authentication. The RolesGuard is used to enforce role-based access control. Only users with the Admin role can access the /users/:id DELETE endpoint.
+All endpoints except /users (POST) and /auth/login require JWT authentication.
 
 ## Error Handling
 The API returns appropriate HTTP status codes and error messages for different scenarios, such as invalid credentials, missing required fields, and unauthorized access.
 
 ## Security
 Passwords are stored securely using bcrypt hashing. Input validation is performed to prevent security vulnerabilities.
+
 # money-transfer-system
