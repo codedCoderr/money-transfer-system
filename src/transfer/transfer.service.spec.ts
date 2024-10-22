@@ -3,14 +3,10 @@ import { TransferService } from './transfer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/services/redis.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-// import { Cache } from 'cache-manager';
 import { TransferDTO } from './dtos';
 
 describe('TransferService', () => {
   let transferService: TransferService;
-  // let prismaService: PrismaService;
-  // let redisService: RedisService;
-  // let cacheManager: Cache;
 
   const mockPrismaService = {
     $transaction: jest.fn(),
@@ -44,9 +40,6 @@ describe('TransferService', () => {
     }).compile();
 
     transferService = module.get<TransferService>(TransferService);
-    // prismaService = module.get<PrismaService>(PrismaService);
-    // redisService = module.get<RedisService>(RedisService);
-    // cacheManager = module.get<Cache>(CACHE_MANAGER);
   });
 
   afterEach(() => {
@@ -171,6 +164,140 @@ describe('TransferService', () => {
         'user:transfers:receiver',
       );
     });
+
+    it('should update cache with new balances', async () => {
+      const mockSender = { id: 1, username: 'sender', balance: 500 };
+      const mockReceiver = { id: 2, username: 'receiver', balance: 200 };
+      const mockTransfer = { id: 1, senderId: 1, receiverId: 2, amount: 100 };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback) => {
+        mockPrismaService.user.findUnique
+          .mockResolvedValueOnce(mockSender)
+          .mockResolvedValueOnce(mockReceiver);
+        mockPrismaService.user.update.mockResolvedValue({});
+        mockPrismaService.transfer.create.mockResolvedValue(mockTransfer);
+        return callback(mockPrismaService);
+      });
+
+      await transferService.transferMoney(transferDto);
+
+      expect(mockCacheManager.set).toHaveBeenCalledWith(
+        'user:balance:sender',
+        400,
+        3600 * 24,
+      );
+      expect(mockCacheManager.set).toHaveBeenCalledWith(
+        'user:balance:receiver',
+        300,
+        3600 * 24,
+      );
+    });
+
+    it('should handle decimal amounts correctly', async () => {
+      const decimalTransferDto: TransferDTO = {
+        senderUsername: 'sender',
+        receiverUsername: 'receiver',
+        amount: 100.5,
+      };
+
+      const mockSender = { id: 1, username: 'sender', balance: 500.75 };
+      const mockReceiver = { id: 2, username: 'receiver', balance: 200.25 };
+      const mockTransfer = { id: 1, senderId: 1, receiverId: 2, amount: 100.5 };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback) => {
+        mockPrismaService.user.findUnique
+          .mockResolvedValueOnce(mockSender)
+          .mockResolvedValueOnce(mockReceiver);
+        mockPrismaService.user.update.mockResolvedValue({});
+        mockPrismaService.transfer.create.mockResolvedValue(mockTransfer);
+        return callback(mockPrismaService);
+      });
+
+      const result = await transferService.transferMoney(decimalTransferDto);
+
+      expect(result).toEqual(mockTransfer);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { username: 'sender' },
+        data: { balance: { decrement: 100.5 } },
+      });
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { username: 'receiver' },
+        data: { balance: { increment: 100.5 } },
+      });
+    });
+  });
+
+  describe('getUserBalance', () => {
+    const username = 'testuser';
+
+    it('should return cached balance if available', async () => {
+      const cachedBalance = 1000;
+      mockCacheManager.get.mockResolvedValue(cachedBalance);
+
+      const result = await transferService.getUserBalance(username);
+
+      expect(result).toEqual(cachedBalance);
+      expect(mockCacheManager.get).toHaveBeenCalledWith(
+        `user:balance:${username}`,
+      );
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should fetch balance from database if not cached', async () => {
+      const dbBalance = 1500;
+      mockCacheManager.get.mockResolvedValue(undefined);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        balance: dbBalance,
+      });
+
+      const result = await transferService.getUserBalance(username);
+
+      expect(result).toEqual(dbBalance);
+      expect(mockCacheManager.get).toHaveBeenCalledWith(
+        `user:balance:${username}`,
+      );
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { username },
+        select: { balance: true },
+      });
+    });
+
+    it('should cache fetched balance', async () => {
+      const dbBalance = 1500;
+      mockCacheManager.get.mockResolvedValue(undefined);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        balance: dbBalance,
+      });
+
+      await transferService.getUserBalance(username);
+
+      expect(mockCacheManager.set).toHaveBeenCalledWith(
+        `user:balance:${username}`,
+        dbBalance,
+        3600 * 24,
+      );
+    });
+
+    it('should throw an error if user is not found', async () => {
+      mockCacheManager.get.mockResolvedValue(undefined);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(transferService.getUserBalance(username)).rejects.toThrow(
+        'User not found',
+      );
+    });
+
+    it('should handle zero balance correctly', async () => {
+      const zeroBalance = 0;
+      mockCacheManager.get.mockResolvedValue(undefined);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        balance: zeroBalance,
+      });
+
+      const result = await transferService.getUserBalance(username);
+
+      expect(result).toEqual(zeroBalance);
+    });
   });
 
   describe('getTransfers', () => {
@@ -255,6 +382,22 @@ describe('TransferService', () => {
       const result = await transferService.getTransfers(username, page, limit);
 
       expect(result).toEqual([]);
+    });
+
+    it('should handle large page numbers correctly', async () => {
+      const largePage = 1000;
+      mockCacheManager.get.mockResolvedValue(null);
+      mockPrismaService.transfer.findMany.mockResolvedValue([]);
+
+      await transferService.getTransfers(username, largePage, limit);
+
+      expect(mockPrismaService.transfer.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [{ sender: { username } }, { receiver: { username } }],
+        },
+        skip: 9990,
+        take: 10,
+      });
     });
   });
 });
