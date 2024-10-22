@@ -25,6 +25,7 @@ describe('TransferController', () => {
           useValue: {
             transferMoney: jest.fn(),
             getTransfers: jest.fn(),
+            getUserBalance: jest.fn(),
           },
         },
         {
@@ -266,6 +267,155 @@ describe('TransferController', () => {
         username,
         2,
         20,
+      );
+    });
+  });
+
+  describe('getUserBalance', () => {
+    const username = 'testuser';
+
+    it('should fetch user balance successfully', async () => {
+      const mockBalance = 1000;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, username);
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(username);
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
+      );
+    });
+
+    it('should handle errors during balance fetching', async () => {
+      const error = new Error('Failed to fetch balance');
+      jest.spyOn(transferService, 'getUserBalance').mockRejectedValue(error);
+
+      await transferController.getUserBalance(mockResponse, username);
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(username);
+      expect(responseService.json).toHaveBeenCalledWith(mockResponse, error);
+    });
+
+    it('should handle empty username', async () => {
+      const mockBalance = 0;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, '');
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith('');
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
+      );
+    });
+
+    it('should convert username to lowercase', async () => {
+      const mockBalance = 500;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, 'TestUser');
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith('testuser');
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
+      );
+    });
+
+    it('should handle undefined username', async () => {
+      const mockBalance = 0;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, undefined);
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(undefined);
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
+      );
+    });
+
+    it('should handle non-existent user', async () => {
+      jest.spyOn(transferService, 'getUserBalance').mockResolvedValue(null);
+
+      await transferController.getUserBalance(mockResponse, 'nonexistentuser');
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(
+        'nonexistentuser',
+      );
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: null },
+      );
+    });
+
+    it('should handle zero balance', async () => {
+      const mockBalance = 0;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, username);
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(username);
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
+      );
+    });
+
+    it('should handle very large balance', async () => {
+      const mockBalance = Number.MAX_SAFE_INTEGER;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, username);
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(username);
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
+      );
+    });
+
+    it('should handle negative balance', async () => {
+      const mockBalance = -500;
+      jest
+        .spyOn(transferService, 'getUserBalance')
+        .mockResolvedValue(mockBalance);
+
+      await transferController.getUserBalance(mockResponse, username);
+
+      expect(transferService.getUserBalance).toHaveBeenCalledWith(username);
+      expect(responseService.json).toHaveBeenCalledWith(
+        mockResponse,
+        200,
+        'Users balance fetched successfully',
+        { balance: mockBalance },
       );
     });
   });

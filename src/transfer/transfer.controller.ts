@@ -80,17 +80,19 @@ export class TransferController {
   async getUserBalance(
     @Res() res: Response,
     @Param('username') username: string,
-  ) {
+  ): Promise<void> {
     try {
-      const balance = await this.transferService.getUserBalance(username);
-      return this.responseService.json(
+      const lowercaseUsername = username ? username.toLowerCase() : username;
+      const balance =
+        await this.transferService.getUserBalance(lowercaseUsername);
+      this.responseService.json(
         res,
         200,
         'Users balance fetched successfully',
-        balance,
+        { balance },
       );
     } catch (error) {
-      return this.responseService.json(res, error);
+      this.responseService.json(res, error);
     }
   }
 }
