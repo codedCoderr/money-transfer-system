@@ -6,6 +6,7 @@ import {
   Res,
   Query,
   Get,
+  Param,
 } from '@nestjs/common';
 import { Response } from 'express';
 
@@ -69,6 +70,24 @@ export class TransferController {
         200,
         'User transfers fetched successfully',
         transfer,
+      );
+    } catch (error) {
+      return this.responseService.json(res, error);
+    }
+  }
+
+  @Get('balance/:username')
+  async getUserBalance(
+    @Res() res: Response,
+    @Param('username') username: string,
+  ) {
+    try {
+      const balance = await this.transferService.getUserBalance(username);
+      return this.responseService.json(
+        res,
+        200,
+        'Users balance fetched successfully',
+        balance,
       );
     } catch (error) {
       return this.responseService.json(res, error);

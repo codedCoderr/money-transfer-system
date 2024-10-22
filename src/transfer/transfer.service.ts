@@ -47,8 +47,40 @@ export class TransferService {
       await this.redisService.delete(`user:transfers:${senderUsername}`);
       await this.redisService.delete(`user:transfers:${receiverUsername}`);
 
+      await this.cacheManager.set(
+        `user:balance:${senderUsername}`,
+        sender.balance - amount,
+        3600 * 24,
+      );
+      await this.cacheManager.set(
+        `user:balance:${receiverUsername}`,
+        receiver.balance + amount,
+        3600 * 24,
+      );
+
       return transfer;
     });
+  }
+
+  async getUserBalance(username: string): Promise<number> {
+    const cacheKey = `user:balance:${username}`;
+    const cachedBalance = await this.cacheManager.get<number>(cacheKey);
+
+    if (cachedBalance !== undefined) {
+      return cachedBalance;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: { balance: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    await this.cacheManager.set(cacheKey, user.balance, 3600 * 24);
+    return user.balance;
   }
 
   async getTransfers(username: string, page: number, limit: number) {
