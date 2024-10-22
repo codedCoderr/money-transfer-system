@@ -224,6 +224,23 @@ JSON
 }
 ```
 
+## Check User Balance
+
+Description: Transfers money from one user to another using their usernames
+
+Endpoint: /transfers/balance/:username
+
+Method: GET
+
+
+Response:
+
+```bash
+JSON
+{
+  "balance": 9600
+}
+```
 
 ## Authentication and Authorization
 All endpoints except /users (POST) and /auth/login require JWT authentication.
@@ -234,4 +251,6 @@ The API returns appropriate HTTP status codes and error messages for different s
 ## Security
 Passwords are stored securely using bcrypt hashing. Input validation is performed to prevent security vulnerabilities.
 
-# money-transfer-system
+## Caching: 
+Caching is implemented for user balances to enhance performance by reducing database calls.
+
